@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Romota Pro Editor v2.0</title>
+    <style>
+        :root { --primary: #d32f2f; --bg: #1a1a1a; --card: #2d2d2d; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: white; margin: 0; display: flex; height: 100vh; }
+        
+        /* Sidebar Styles */
+        .sidebar { width: 380px; background: var(--card); padding: 25px; box-shadow: 5px 0 15px rgba(0,0,0,0.5); overflow-y: auto; z-index: 10; }
+        h2 { color: var(--primary); font-size: 22px; margin-top: 0; border-bottom: 2px solid #444; padding-bottom: 10px; }
+        
+        .control-group { margin-bottom: 20px; background: #383838; padding: 15px; border-radius: 8px; }
+        label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #aaa; display: block; margin-bottom: 8px; }
+        
+        input, select, button { width: 100%; padding: 10px; margin-top: 5px; border-radius: 5px; border: 1px solid #444; background: #222; color: white; }
+        button { cursor: pointer; transition: 0.3s; font-weight: 700; border: none; }
+        .btn-save { background: #2e7d32; margin-top: 10px; }
+        .btn-save:hover { background: #1b5e20; }
+        .btn-download { background: var(--primary); font-size: 16px; margin-top: 20px; padding: 15px; }
+        
+        /* Canvas Area */
+        .main-view { flex-grow: 1; display: flex; align-items: center; justify-content: center; position: relative; background: #000; }
+        #canvas-wrapper { position: relative; box-shadow: 0 0 50px rgba(0,0,0,0.8); }
+        canvas { max-width: 90vh; height: auto; display: block; cursor: move; }
+
+        .hint { font-size: 11px; color: #888; margin-top: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="sidebar">
+    <h2>ROMOTA PRO</h2>
+    
+    <div class="control-group">
+        <label>Step 1: Base Template</label>
+        <input type="file" id="bgInput">
+    </div>
+
+    <div class="control-group">
+        <label>Step 2: Product Image</label>
+        <input type="file" id="prodInput">
+        <label style="margin-top:10px;">Zoom Level</label>
+        <input type="range" id="imgScale" min="0.1" max="3" step="0.01" value="1">
+    </div>
+
+    <div class="control-group">
+        <label>Step 3: Product Name</label>
+        <input type="text" id="prodText" value="SPARE PART NAME">
+        <div style="display:flex; gap:10px; margin-top:10px;">
+            <input type="color" id="textColor" value="#ffffff">
+            <input type="number" id="fontSize" value="70">
+        </div>
+        <label style="margin-top:10px;">Font Family</label>
+        <select id="fontList">
+            <option value="Impact">Impact (Bold Industrial)</option>
+            <option value="Arial Black">Arial Black</option>
+            <option value="Oswald">Oswald</option>
+            <option value="Montserrat">Montserrat</option>
+        </select>
+    </div>
+
+    <div class="control-group" style="border: 1px dashed var(--primary);">
+        <label>Step 4: Layout Manager</label>
+        <p class="hint">Mouse එකෙන් Frame එක සහ Text එක අදින්න.</p>
+        <button class="btn-save" onclick="saveLayout()">SAVE LAYOUT TO DB</button>
+    </div>
+
+    <button class="btn-download" onclick="download()">DOWNLOAD FINAL POST</button>
+</div>
+
+<div class="main-view">
+    <div id="canvas-wrapper">
+        <canvas id="canvas" width="1080" height="1080"></canvas>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    let bgImg = new Image();
+    let prodImg = new Image();
+    
+    // Default Layout Configuration (Database)
+    let layout = {
+        frameX: 200, frameY: 300, frameW: 680, frameH: 500, // Product Box
+        textX: 540, textY: 200, // Name Position
+        prodOffset: {x: 0, y: 0} // Adjustment inside frame
+    };
+
+    // Load from DB
+    if(localStorage.getItem('romota_layout_v2')) {
+        layout = JSON.parse(localStorage.getItem('romota_layout_v2'));
+    }
+
+    document.getElementById('bgInput').onchange = (e) => loadImg(e, bgImg);
+    document.getElementById('prodInput').onchange = (e) => loadImg(e, prodImg);
+    document.querySelectorAll('input, select').forEach(el => el.oninput = draw);
+
+    function loadImg(e, img) {
+        const reader = new FileReader();
+        reader.onload = (f) => { img.src = f.target.result; img.onload = draw; };
+        reader.readAsDataURL(e.target.files[0]);
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, 1080, 1080);
+        
+        // 1. Background
+        if(bgImg.src) ctx.drawImage(bgImg, 0, 0, 1080, 1080);
+        else { ctx.fillStyle = "#222"; ctx.fillRect(0,0,1080,1080); }
+
+        // 2. Product Box (Photoshop Frame Style)
+        ctx.save();
+        // Create the clipping box
+        ctx.beginPath();
+        ctx.rect(layout.frameX, layout.frameY, layout.frameW, layout.frameH);
+        // Visual border for the frame
+        ctx.strokeStyle = "rgba(211, 47, 47, 0.5)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.clip(); // Everything after this is inside the box
+
+        if(prodImg.src) {
+            let scale = document.getElementById('imgScale').value;
+            let w = prodImg.width * scale;
+            let h = prodImg.height * scale;
+            // Center inside frame + offset
+            let x = (layout.frameX + layout.frameW/2) - w/2 + layout.prodOffset.x;
+            let y = (layout.frameY + layout.frameH/2) - h/2 + layout.prodOffset.y;
+            ctx.drawImage(prodImg, x, y, w, h);
+        }
+        ctx.restore();
+
+        // 3. Product Name
+        ctx.fillStyle = document.getElementById('textColor').value;
+        ctx.font = `bold ${document.getElementById('fontSize').value}px ${document.getElementById('fontList').value}`;
+        ctx.textAlign = "center";
+        ctx.fillText(document.getElementById('prodText').value.toUpperCase(), layout.textX, layout.textY);
+    }
+
+    // Dragging Logic
+    let isDragging = null; // 'frame', 'text', 'prod'
+    canvas.onmousedown = (e) => {
+        const m = getMouse(e);
+        // Check if clicking name
+        if(Math.abs(m.y - layout.textY) < 50) isDragging = 'text';
+        // Check if clicking frame area
+        else if(m.x > layout.frameX && m.x < layout.frameX + layout.frameW && m.y > layout.frameY && m.y < layout.frameY + layout.frameH) {
+            isDragging = (e.shiftKey) ? 'frame' : 'prod'; // Shift for moving frame itself
+        }
+    };
+
+    canvas.onmousemove = (e) => {
+        if(!isDragging) return;
+        const m = getMouse(e);
+        if(isDragging === 'text') { layout.textX = m.x; layout.textY = m.y; }
+        if(isDragging === 'frame') { layout.frameX = m.x - layout.frameW/2; layout.frameY = m.y - layout.frameH/2; }
+        if(isDragging === 'prod') { 
+            // This moves the image inside the frame
+            layout.prodOffset.x += e.movementX * 2;
+            layout.prodOffset.y += e.movementY * 2;
+        }
+        draw();
+    };
+
+    canvas.onmouseup = () => isDragging = null;
+
+    function getMouse(e) {
+        const r = canvas.getBoundingClientRect();
+        return { x: (e.clientX - r.left) * (1080 / r.width), y: (e.clientY - r.top) * (1080 / r.height) };
+    }
+
+    function saveLayout() {
+        localStorage.setItem('romota_layout_v2', JSON.stringify(layout));
+        alert("Success! Frame positions and Text location saved to Database.");
+    }
+
+    function download() {
+        const link = document.createElement('a');
+        link.download = `Romota_Post_${Date.now()}.png`;
+        link.href = canvas.toDataURL('image/png', 1.0);
+        link.click();
+    }
+</script>
+</body>
+</html>
