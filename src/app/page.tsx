@@ -63,6 +63,15 @@ export default function RomotaEditor() {
         "Roboto", "Montserrat", "Oswald", "Inter"
     ]);
 
+    // Dimensions State
+    const [aspectRatio, setAspectRatio] = useState({ name: '1:1 Square', w: 1080, h: 1080 });
+    const ratios = [
+        { name: '1:1 Square', w: 1080, h: 1080 },
+        { name: '4:5 Portrait', w: 1080, h: 1350 },
+        { name: '16:9 Slide', w: 1920, h: 1080 },
+        { name: '9:16 Story', w: 1080, h: 1920 }
+    ];
+
     // Layout State
     const [layout, setLayout] = useState<LayoutState>({
         frameX: 200,
@@ -142,14 +151,21 @@ export default function RomotaEditor() {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        ctx.clearRect(0, 0, 1080, 1080);
+        const W = aspectRatio.w;
+        const H = aspectRatio.h;
+
+        ctx.clearRect(0, 0, W, H);
 
         // 1. Draw Background
         if (bgImg) {
-            ctx.drawImage(bgImg, 0, 0, 1080, 1080);
+            // Fill background maintaining aspect ratio (cover)
+            const ratio = Math.max(W / bgImg.width, H / bgImg.height);
+            const w = bgImg.width * ratio;
+            const h = bgImg.height * ratio;
+            ctx.drawImage(bgImg, (W - w) / 2, (H - h) / 2, w, h);
         } else {
             ctx.fillStyle = "#1e1e1e";
-            ctx.fillRect(0, 0, 1080, 1080);
+            ctx.fillRect(0, 0, W, H);
         }
 
         // 2. Draw Product Frame & Image
@@ -202,7 +218,7 @@ export default function RomotaEditor() {
                 ctx.strokeRect(layer.x - width / 2 - 10, layer.y - layer.fontSize, width + 20, layer.fontSize + 10);
             }
         });
-    }, [layout, bgImg, prodImg, activeLayerId]);
+    }, [layout, bgImg, prodImg, activeLayerId, aspectRatio]);
 
     useEffect(() => { draw(); }, [draw]);
 
@@ -225,8 +241,8 @@ export default function RomotaEditor() {
         if (!canvasRef.current) return { x: 0, y: 0 };
         const rect = canvasRef.current.getBoundingClientRect();
         return {
-            x: (e.clientX - rect.left) * (1080 / rect.width),
-            y: (e.clientY - rect.top) * (1080 / rect.height)
+            x: (e.clientX - rect.left) * (aspectRatio.w / rect.width),
+            y: (e.clientY - rect.top) * (aspectRatio.h / rect.height)
         };
     };
 
@@ -313,8 +329,8 @@ export default function RomotaEditor() {
         const newLayer: TextLayer = {
             id: `text-${Date.now()}`,
             content: "NEW TEXT",
-            x: 540,
-            y: 540,
+            x: aspectRatio.w / 2,
+            y: aspectRatio.h / 2,
             fontSize: 50,
             fontFamily: "Arial Black",
             color: "#ffffff",
@@ -346,7 +362,7 @@ export default function RomotaEditor() {
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        updateActiveLayer(type === 'h-center' ? { x: 540 } : { y: 540 });
+        updateActiveLayer(type === 'h-center' ? { x: aspectRatio.w / 2 } : { y: aspectRatio.h / 2 });
     };
 
     const alignProduct = (type: 'h-center' | 'v-center') => {
@@ -441,9 +457,25 @@ export default function RomotaEditor() {
                 {/* 1. Global Assets */}
                 <div className="bg-[#141414] rounded-2xl p-4 border border-white/5 space-y-4 shadow-xl">
                     <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
-                        <Layers className="w-3 h-3" /> Base Assets
+                        <Layers className="w-3 h-3" /> Canvas Settings
                     </h2>
-                    <div className="space-y-3">
+
+                    <div className="space-y-2">
+                        <label className="text-[10px] text-gray-500 uppercase">Aspect Ratio</label>
+                        <div className="grid grid-cols-2 gap-2">
+                            {ratios.map(r => (
+                                <button
+                                    key={r.name}
+                                    onClick={() => setAspectRatio(r)}
+                                    className={`text-[9px] p-2 rounded-lg border transition-all ${aspectRatio.name === r.name ? 'bg-red-600 border-red-500 text-white' : 'bg-black border-white/5 text-gray-500 hover:border-white/20'}`}
+                                >
+                                    {r.name}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="space-y-3 pt-2">
                         <div className="group">
                             <label className="text-[10px] text-gray-500 mb-1 block uppercase">Background Template</label>
                             <input type="file" onChange={(e) => handleFile(e, 'bg')} className="hidden" id="bg-upload" />
@@ -536,16 +568,17 @@ export default function RomotaEditor() {
                     </button>
                 </div>
 
-                <div className="relative p-4 md:p-8 group w-full flex justify-center">
+                <div className="relative p-4 md:p-8 group w-full flex justify-center items-center h-full">
                     <canvas
                         ref={canvasRef}
-                        width={1080}
-                        height={1080}
+                        width={aspectRatio.w}
+                        height={aspectRatio.h}
                         onMouseDown={handleMouseDown}
                         onMouseMove={handleMouseMove}
                         onMouseUp={handleMouseUp}
                         onMouseLeave={handleMouseUp}
-                        className="max-h-[85vh] w-full max-w-[min(100%,1080px)] h-auto shadow-[0_0_100px_rgba(0,0,0,0.8)] border border-white/10 cursor-crosshair bg-[#050505] transition-transform duration-500 rounded-lg aspect-square"
+                        className="max-h-[85vh] w-auto max-w-full h-auto shadow-[0_0_100px_rgba(0,0,0,0.8)] border border-white/10 cursor-crosshair bg-[#050505] transition-transform duration-500 rounded-lg"
+                        style={{ aspectRatio: `${aspectRatio.w} / ${aspectRatio.h}` }}
                     />
                 </div>
 
