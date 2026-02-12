@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Save, Download, Plus, Trash2, Maximize, RotateCcw, Type, Image as LucideImage, Layers } from 'lucide-react';
+import { Save, Download, Plus, Trash2, Maximize, RotateCcw, Type, Image as LucideImage, Layers, AlignCenter, AlignVerticalJustifyCenter, Smartphone, Monitor } from 'lucide-react';
 
 /**
  * Romota Pro Editor v3.1
@@ -105,21 +105,28 @@ export default function RomotaEditor() {
 
     // Load persisted data
     useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const savedLayout = localStorage.getItem('romota_v3_layout');
-            const savedTemplates = localStorage.getItem('romota_v3_templates');
+        const loadInitialData = async () => {
+            // Load templates from Global DB
+            try {
+                const res = await fetch('/api/templates');
+                const data = await res.json();
+                if (Array.isArray(data)) setTemplates(data);
+            } catch (e) {
+                console.error("Failed to fetch templates", e);
+                // Fallback to local storage if API fails
+                const savedTemplates = localStorage.getItem('romota_v3_templates');
+                if (savedTemplates) setTemplates(JSON.parse(savedTemplates));
+            }
 
+            // Load last layout from local storage
+            const savedLayout = localStorage.getItem('romota_v3_layout');
             if (savedLayout) {
                 try {
                     setLayout(JSON.parse(savedLayout));
                 } catch (e) { console.error("Error loading layout", e); }
             }
-            if (savedTemplates) {
-                try {
-                    setTemplates(JSON.parse(savedTemplates));
-                } catch (e) { console.error("Error loading templates", e); }
-            }
-        }
+        };
+        loadInitialData();
     }, []);
 
     // Auto-save templates
@@ -334,8 +341,24 @@ export default function RomotaEditor() {
         }));
     };
 
+    const alignActiveLayer = (type: 'h-center' | 'v-center') => {
+        if (!activeLayerId) return;
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        updateActiveLayer(type === 'h-center' ? { x: 540 } : { y: 540 });
+    };
+
+    const alignProduct = (type: 'h-center' | 'v-center') => {
+        setLayout(prev => ({
+            ...prev,
+            prodOffsetX: type === 'h-center' ? 0 : prev.prodOffsetX,
+            prodOffsetY: type === 'v-center' ? 0 : prev.prodOffsetY
+        }));
+    };
+
     // Template Operations
-    const saveAsTemplate = () => {
+    const saveAsTemplate = async () => {
         if (!newTemplateName.trim()) {
             alert("Please enter a template name");
             return;
@@ -350,12 +373,39 @@ export default function RomotaEditor() {
             textLayers: JSON.parse(JSON.stringify(layout.textLayers)),
             bgBase64: bgImg?.src,
             prodBase64: prodImg?.src,
-            // Legacy/Extra fields if needed
             prodName: "", textColor: "#ffffff", fontSize: 50, fontFamily: "Impact"
         };
-        setTemplates([...templates, template]);
-        setNewTemplateName("");
-        alert(`Template "${template.name}" saved!`);
+
+        try {
+            const res = await fetch('/api/templates', {
+                method: 'POST',
+                body: JSON.stringify(template)
+            });
+            const data = await res.json();
+            if (data.success) {
+                setTemplates(data.templates);
+                setNewTemplateName("");
+                alert(`Template "${template.name}" synced globally!`);
+            }
+        } catch (e) {
+            console.error("Global sync failed", e);
+            setTemplates([...templates, template]);
+            setNewTemplateName("");
+            alert(`Saved locally (Global sync failed)`);
+        }
+    };
+
+    const deleteTemplate = async (id: string) => {
+        try {
+            const res = await fetch('/api/templates', {
+                method: 'DELETE',
+                body: JSON.stringify({ id })
+            });
+            const data = await res.json();
+            if (data.success) setTemplates(data.templates);
+        } catch (e) {
+            setTemplates(templates.filter(t => t.id !== id));
+        }
     };
 
     const loadTemplate = (temp: Template) => {
@@ -440,7 +490,7 @@ export default function RomotaEditor() {
                                 <span className="text-xs text-gray-300 truncate">{tmp.name}</span>
                                 <div className="flex gap-1">
                                     <button onClick={() => loadTemplate(tmp)} className="text-[10px] bg-red-600/20 text-red-400 px-2 py-1 rounded hover:bg-red-600 hover:text-white transition-colors">Apply</button>
-                                    <button onClick={() => setTemplates(templates.filter(t => t.id !== tmp.id))} className="text-gray-600 hover:text-red-500"><Trash2 className="w-3 h-3" /></button>
+                                    <button onClick={() => deleteTemplate(tmp.id)} className="text-gray-600 hover:text-red-500"><Trash2 className="w-3 h-3" /></button>
                                 </div>
                             </div>
                         ))}
@@ -467,7 +517,7 @@ export default function RomotaEditor() {
                     </div>
                 </div>
 
-                <div className="absolute top-4 right-6 z-10 bg-black/40 backdrop-blur-md border border-white/10 px-4 py-2 rounded-2xl flex items-center gap-4">
+                <div className="absolute top-4 right-6 z-10 bg-black/40 backdrop-blur-md border border-white/10 px-4 py-2 rounded-2xl flex items-center gap-4 max-sm:scale-75 max-sm:top-14 max-sm:left-6 max-sm:right-auto">
                     <div className="flex flex-col">
                         <span className="text-[10px] text-gray-500 uppercase font-bold tracking-tighter">Zoom</span>
                         <input
@@ -486,7 +536,7 @@ export default function RomotaEditor() {
                     </button>
                 </div>
 
-                <div className="relative p-8 group">
+                <div className="relative p-4 md:p-8 group w-full flex justify-center">
                     <canvas
                         ref={canvasRef}
                         width={1080}
@@ -495,24 +545,24 @@ export default function RomotaEditor() {
                         onMouseMove={handleMouseMove}
                         onMouseUp={handleMouseUp}
                         onMouseLeave={handleMouseUp}
-                        className="max-h-[80vh] w-auto shadow-[0_0_100px_rgba(0,0,0,0.8)] border border-white/10 cursor-crosshair bg-[#050505] transition-transform duration-500"
+                        className="max-h-[85vh] w-full max-w-[min(100%,1080px)] h-auto shadow-[0_0_100px_rgba(0,0,0,0.8)] border border-white/10 cursor-crosshair bg-[#050505] transition-transform duration-500 rounded-lg aspect-square"
                     />
                 </div>
 
-                <div className="absolute bottom-6 flex gap-4 bg-black/60 backdrop-blur-xl px-6 py-4 rounded-[2rem] border border-white/10 shadow-2xl scale-95 md:scale-100">
+                <div className="absolute bottom-6 flex gap-2 md:gap-4 bg-black/60 backdrop-blur-xl px-4 md:px-6 py-3 md:py-4 rounded-[1.5rem] md:rounded-[2rem] border border-white/10 shadow-2xl scale-90 md:scale-100 max-sm:bottom-4">
                     <button onClick={() => {
                         if (!canvasRef.current) return;
                         const link = document.createElement('a');
-                        link.download = `Romota_Pro_${Date.now()}.png`;
+                        link.download = `GearFlow_${Date.now()}.png`;
                         link.href = canvasRef.current.toDataURL('image/png', 1.0);
                         link.click();
-                    }} className="flex items-center gap-3 bg-red-600 hover:bg-red-500 px-6 py-3 rounded-2xl font-bold text-sm transition-all shadow-lg shadow-red-600/20 active:scale-95">
-                        <Download className="w-4 h-4" /> DOWNLOAD POST
+                    }} className="flex items-center gap-2 md:gap-3 bg-red-600 hover:bg-red-500 px-4 md:px-6 py-2.5 md:py-3 rounded-[1rem] md:rounded-2xl font-bold text-xs md:text-sm transition-all shadow-lg shadow-red-600/20 active:scale-95">
+                        <Download className="w-4 h-4" /> DOWNLOAD
                     </button>
                     <button onClick={() => {
                         localStorage.setItem('romota_v3_layout', JSON.stringify(layout));
                         alert("Workspace autosaved.");
-                    }} className="flex items-center gap-3 bg-white/5 hover:bg-white/10 px-6 py-3 rounded-2xl font-bold text-sm transition-all border border-white/5">
+                    }} className="flex items-center gap-2 md:gap-3 bg-white/5 hover:bg-white/10 px-4 md:px-6 py-2.5 md:py-3 rounded-[1rem] md:rounded-2xl font-bold text-xs md:text-sm transition-all border border-white/5 whitespace-nowrap">
                         <Save className="w-4 h-4 text-green-500" /> SAVE STATE
                     </button>
                 </div>
@@ -610,6 +660,31 @@ export default function RomotaEditor() {
                         <p className="text-xs text-gray-500">Select an item on canvas to edit properties</p>
                     </div>
                 )}
+
+                {/* Alignment Tools (Added when no specific layer is active but images are present) */}
+                <div className="bg-[#141414] rounded-2xl p-4 border border-white/5 space-y-3">
+                    <h2 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
+                        <RotateCcw className="w-3 h-3" /> Quick Alignment
+                    </h2>
+                    <div className="grid grid-cols-2 gap-2">
+                        <button onClick={() => alignProduct('h-center')} className="flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 p-2 rounded-lg text-[10px] text-gray-400 border border-white/5 transition-all">
+                            <AlignCenter className="w-3 h-3" /> Center Product H
+                        </button>
+                        <button onClick={() => alignProduct('v-center')} className="flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 p-2 rounded-lg text-[10px] text-gray-400 border border-white/5 transition-all">
+                            <AlignVerticalJustifyCenter className="w-3 h-3" /> Center Product V
+                        </button>
+                        {activeLayer && (
+                            <>
+                                <button onClick={() => alignActiveLayer('h-center')} className="flex items-center justify-center gap-2 bg-red-500/10 hover:bg-red-500/20 p-2 rounded-lg text-[10px] text-red-500 border border-red-500/20 transition-all">
+                                    <AlignCenter className="w-3 h-3" /> Center Text H
+                                </button>
+                                <button onClick={() => alignActiveLayer('v-center')} className="flex items-center justify-center gap-2 bg-red-500/10 hover:bg-red-500/20 p-2 rounded-lg text-[10px] text-red-500 border border-red-500/20 transition-all">
+                                    <AlignVerticalJustifyCenter className="w-3 h-3" /> Center Text V
+                                </button>
+                            </>
+                        )}
+                    </div>
+                </div>
 
                 {/* Navigation Hint */}
                 <div className="bg-[#141414]/50 rounded-2xl p-4 border border-white/5 space-y-2">
