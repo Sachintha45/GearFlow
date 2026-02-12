@@ -145,7 +145,7 @@ export default function RomotaEditor() {
         }
     }, [templates]);
 
-    const draw = useCallback(() => {
+    const draw = useCallback((isExporting = false) => {
         const canvas = canvasRef.current;
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
@@ -174,10 +174,12 @@ export default function RomotaEditor() {
         ctx.rect(layout.frameX, layout.frameY, layout.frameW, layout.frameH);
 
         // Visual Frame Border (only visible during editing/if no bg)
-        ctx.strokeStyle = "rgba(211, 47, 47, 0.4)";
-        ctx.setLineDash([10, 5]);
-        ctx.lineWidth = 2;
-        ctx.stroke();
+        if (!isExporting) {
+            ctx.strokeStyle = "rgba(211, 47, 47, 0.4)";
+            ctx.setLineDash([10, 5]);
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
 
         ctx.clip();
 
@@ -199,8 +201,10 @@ export default function RomotaEditor() {
         ctx.restore();
 
         // 3. Draw Resize Handle (bottom right of frame)
-        ctx.fillStyle = "rgba(211, 47, 47, 0.8)";
-        ctx.fillRect(layout.frameX + layout.frameW - 15, layout.frameY + layout.frameH - 15, 15, 15);
+        if (!isExporting) {
+            ctx.fillStyle = "rgba(211, 47, 47, 0.8)";
+            ctx.fillRect(layout.frameX + layout.frameW - 15, layout.frameY + layout.frameH - 15, 15, 15);
+        }
 
         // 4. Draw Text Layers
         layout.textLayers.forEach(layer => {
@@ -210,7 +214,7 @@ export default function RomotaEditor() {
             ctx.fillText(layer.content.toUpperCase(), layer.x, layer.y);
 
             // Visual outline if active
-            if (activeLayerId === layer.id) {
+            if (!isExporting && activeLayerId === layer.id) {
                 ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
                 ctx.lineWidth = 1;
                 ctx.setLineDash([5, 5]);
@@ -588,10 +592,12 @@ export default function RomotaEditor() {
                 <div className="absolute bottom-6 flex gap-2 md:gap-4 bg-black/60 backdrop-blur-xl px-4 md:px-6 py-3 md:py-4 rounded-[1.5rem] md:rounded-[2rem] border border-white/10 shadow-2xl scale-90 md:scale-100 max-sm:bottom-4">
                     <button onClick={() => {
                         if (!canvasRef.current) return;
+                        draw(true); // Hide guides before export
                         const link = document.createElement('a');
                         link.download = `GearFlow_${Date.now()}.png`;
                         link.href = canvasRef.current.toDataURL('image/png', 1.0);
                         link.click();
+                        draw(false); // Restore guides after export
                     }} className="flex items-center gap-2 md:gap-3 bg-red-600 hover:bg-red-500 px-4 md:px-6 py-2.5 md:py-3 rounded-[1rem] md:rounded-2xl font-bold text-xs md:text-sm transition-all shadow-lg shadow-red-600/20 active:scale-95">
                         <Download className="w-4 h-4" /> DOWNLOAD
                     </button>
