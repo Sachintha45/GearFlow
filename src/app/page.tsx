@@ -233,12 +233,22 @@ export default function RomotaEditor() {
         // 2. Check Text Layers (Top-to-Bottom)
         for (let i = layout.textLayers.length - 1; i >= 0; i--) {
             const layer = layout.textLayers[i];
-            // Rude hit detection
-            if (Math.abs(m.y - layer.y) < layer.fontSize && Math.abs(m.x - layer.x) < 300) {
-                setIsDragging(`text-${layer.id}`);
-                setDragOffset({ x: m.x - layer.x, y: m.y - layer.y });
-                setActiveLayerId(layer.id);
-                return;
+            const canvas = canvasRef.current;
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    ctx.font = `${layer.bold ? 'bold' : ''} ${layer.fontSize}px "${layer.fontFamily}"`;
+                    const width = ctx.measureText(layer.content.toUpperCase()).width;
+                    // Adjusted hit box: center is at x, and baseline is at y. 
+                    // We check if mouse is within height and width.
+                    if (Math.abs(m.y - (layer.y - layer.fontSize / 2)) < (layer.fontSize / 2 + 10) &&
+                        Math.abs(m.x - layer.x) < (width / 2 + 20)) {
+                        setIsDragging(`text-${layer.id}`);
+                        setDragOffset({ x: m.x - layer.x, y: m.y - layer.y });
+                        setActiveLayerId(layer.id);
+                        return;
+                    }
+                }
             }
         }
 
@@ -250,6 +260,7 @@ export default function RomotaEditor() {
                 setDragOffset({ x: m.x - layout.frameX, y: m.y - layout.frameY });
             } else {
                 setIsDragging('prod');
+                setDragOffset({ x: m.x - layout.prodOffsetX, y: m.y - layout.prodOffsetY });
             }
             setActiveLayerId(null);
             return;
@@ -279,8 +290,8 @@ export default function RomotaEditor() {
         } else if (isDragging === 'prod') {
             setLayout(prev => ({
                 ...prev,
-                prodOffsetX: prev.prodOffsetX + e.movementX * 1.5,
-                prodOffsetY: prev.prodOffsetY + e.movementY * 1.5
+                prodOffsetX: m.x - dragOffset.x,
+                prodOffsetY: m.y - dragOffset.y
             }));
         }
     };
@@ -457,9 +468,10 @@ export default function RomotaEditor() {
 
                 <div className="absolute bottom-6 flex gap-4 bg-black/60 backdrop-blur-xl px-6 py-4 rounded-[2rem] border border-white/10 shadow-2xl scale-95 md:scale-100">
                     <button onClick={() => {
+                        if (!canvasRef.current) return;
                         const link = document.createElement('a');
                         link.download = `Romota_Pro_${Date.now()}.png`;
-                        link.href = canvasRef.current!.toDataURL('image/png', 1.0);
+                        link.href = canvasRef.current.toDataURL('image/png', 1.0);
                         link.click();
                     }} className="flex items-center gap-3 bg-red-600 hover:bg-red-500 px-6 py-3 rounded-2xl font-bold text-sm transition-all shadow-lg shadow-red-600/20 active:scale-95">
                         <Download className="w-4 h-4" /> DOWNLOAD POST
