@@ -57,6 +57,7 @@ export default function RomotaEditor() {
     const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
     const [activeLayerId, setActiveLayerId] = useState<string | null>(null);
     const [templates, setTemplates] = useState<Template[]>([]);
+    const [productGallery, setProductGallery] = useState<{ id: string, src: string }[]>([]);
     const [newTemplateName, setNewTemplateName] = useState("");
     const [availableFonts, setAvailableFonts] = useState<string[]>([
         "Impact", "Arial Black", "Verdana", "Tahoma", "Georgia", "Courier New",
@@ -115,19 +116,26 @@ export default function RomotaEditor() {
     // Load persisted data
     useEffect(() => {
         const loadInitialData = async () => {
-            // Load templates from Global DB
+            // 1. Load templates from Global DB
             try {
                 const res = await fetch('/api/templates');
                 const data = await res.json();
-                if (Array.isArray(data)) setTemplates(data);
+                if (Array.isArray(data) && data.length > 0) {
+                    setTemplates(data);
+                } else {
+                    const local = localStorage.getItem('romota_v3_templates');
+                    if (local) setTemplates(JSON.parse(local));
+                }
             } catch (e) {
-                console.error("Failed to fetch templates", e);
-                // Fallback to local storage if API fails
-                const savedTemplates = localStorage.getItem('romota_v3_templates');
-                if (savedTemplates) setTemplates(JSON.parse(savedTemplates));
+                const local = localStorage.getItem('romota_v3_templates');
+                if (local) setTemplates(JSON.parse(local));
             }
 
-            // Load last layout from local storage
+            // 2. Load Gallery from Local Storage
+            const savedGallery = localStorage.getItem('gearflow_gallery');
+            if (savedGallery) setProductGallery(JSON.parse(savedGallery));
+
+            // 3. Load last layout from local storage
             const savedLayout = localStorage.getItem('romota_v3_layout');
             if (savedLayout) {
                 try {
@@ -137,6 +145,13 @@ export default function RomotaEditor() {
         };
         loadInitialData();
     }, []);
+
+    // Redundant local save for templates
+    useEffect(() => {
+        if (templates.length > 0) {
+            localStorage.setItem('romota_v3_templates', JSON.stringify(templates));
+        }
+    }, [templates]);
 
     // Auto-save templates
     useEffect(() => {
@@ -328,6 +343,15 @@ export default function RomotaEditor() {
 
     const handleMouseUp = () => setIsDragging(null);
 
+    const handleWheel = (e: React.WheelEvent) => {
+        if (!prodImg) return;
+        const delta = e.deltaY > 0 ? -0.05 : 0.05;
+        setLayout(prev => ({
+            ...prev,
+            prodScale: Math.max(0.01, Math.min(10, prev.prodScale + delta))
+        }));
+    };
+
     // Layout Actions
     const addTextLayer = () => {
         const newLayer: TextLayer = {
@@ -507,7 +531,58 @@ export default function RomotaEditor() {
                     </div>
                 </div>
 
-                {/* 2. Template Manager */}
+                {/* 2. Product Gallery */}
+                <div className="bg-[#141414] rounded-2xl p-4 border border-white/5 space-y-4 shadow-xl">
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
+                            <LucideImage className="w-3 h-3" /> Product Gallery
+                        </h2>
+                        {prodImg && (
+                            <button
+                                onClick={() => {
+                                    const newItem = { id: `prod-${Date.now()}`, src: prodImg.src };
+                                    const newGallery = [newItem, ...productGallery].slice(0, 12);
+                                    setProductGallery(newGallery);
+                                    localStorage.setItem('gearflow_gallery', JSON.stringify(newGallery));
+                                }}
+                                className="text-[9px] bg-red-600/10 text-red-500 px-2 py-1 rounded-lg border border-red-500/20 hover:bg-red-600 hover:text-white transition-all"
+                            >
+                                Add Current
+                            </button>
+                        )}
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 max-h-40 overflow-y-auto pr-1 custom-scrollbar">
+                        {productGallery.map(item => (
+                            <div key={item.id} className="relative group aspect-square bg-black rounded-lg border border-white/5 overflow-hidden cursor-pointer hover:border-red-500/50 transition-all">
+                                <img
+                                    src={item.src}
+                                    className="w-full h-full object-contain p-1"
+                                    onClick={() => {
+                                        const img = new Image();
+                                        img.onload = () => setProdImg(img);
+                                        img.src = item.src;
+                                    }}
+                                />
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        const newGallery = productGallery.filter(i => i.id !== item.id);
+                                        setProductGallery(newGallery);
+                                        localStorage.setItem('gearflow_gallery', JSON.stringify(newGallery));
+                                    }}
+                                    className="absolute top-1 right-1 p-1 bg-black/60 rounded-md text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                    <Trash2 className="w-2.5 h-2.5" />
+                                </button>
+                            </div>
+                        ))}
+                        {productGallery.length === 0 && (
+                            <div className="col-span-3 py-6 text-center text-[10px] text-gray-600 italic">Gallery Empty</div>
+                        )}
+                    </div>
+                </div>
+
+                {/* 3. Template Manager */}
                 <div className="bg-[#141414] rounded-2xl p-4 border border-white/5 space-y-4 shadow-xl">
                     <h2 className="text-xs font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
                         <Save className="w-3 h-3" /> Templates
@@ -584,6 +659,7 @@ export default function RomotaEditor() {
                         onMouseMove={handleMouseMove}
                         onMouseUp={handleMouseUp}
                         onMouseLeave={handleMouseUp}
+                        onWheel={handleWheel}
                         className="max-h-[85vh] w-auto max-w-full h-auto shadow-[0_0_100px_rgba(0,0,0,0.8)] border border-white/10 cursor-crosshair bg-[#050505] transition-transform duration-500 rounded-lg"
                         style={{ aspectRatio: `${aspectRatio.w} / ${aspectRatio.h}` }}
                     />
