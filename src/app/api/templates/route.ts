@@ -9,6 +9,7 @@ export async function GET() {
         const data = await fs.readFile(DB_PATH, 'utf-8');
         return NextResponse.json(JSON.parse(data));
     } catch (error) {
+        console.error("GET Templates Error:", error);
         return NextResponse.json([], { status: 200 });
     }
 }
@@ -16,15 +17,16 @@ export async function GET() {
 export async function POST(request: Request) {
     try {
         const newTemplate = await request.json();
+        console.log("Saving new template:", newTemplate.name);
+
         let templates = [];
         try {
             const data = await fs.readFile(DB_PATH, 'utf-8');
             templates = JSON.parse(data);
         } catch (e) {
-            // File might not exist yet
+            console.log("No existing templates file found, creating new.");
         }
 
-        // If template has an ID, update it, otherwise add new
         const index = templates.findIndex((t: any) => t.id === newTemplate.id);
         if (index > -1) {
             templates[index] = newTemplate;
@@ -33,8 +35,11 @@ export async function POST(request: Request) {
         }
 
         await fs.writeFile(DB_PATH, JSON.stringify(templates, null, 2));
+        console.log("Template saved successfully. Total templates:", templates.length);
+
         return NextResponse.json({ success: true, templates });
     } catch (error) {
+        console.error("POST Templates Error:", error);
         return NextResponse.json({ success: false, error: 'Failed to save' }, { status: 500 });
     }
 }
@@ -48,6 +53,7 @@ export async function DELETE(request: Request) {
         await fs.writeFile(DB_PATH, JSON.stringify(templates, null, 2));
         return NextResponse.json({ success: true, templates });
     } catch (error) {
+        console.error("DELETE Template Error:", error);
         return NextResponse.json({ success: false, error: 'Failed to delete' }, { status: 500 });
     }
 }
