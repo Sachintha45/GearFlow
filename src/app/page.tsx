@@ -27,10 +27,13 @@ interface Template {
     frameW: number;
     frameH: number;
     textLayers: TextLayer[];
+    bgBase64?: string;
+    prodBase64?: string;
+    // Extra fields for legacy
     textColor: string;
     fontSize: number;
     fontFamily: string;
-    prodName: string; // Left for legacy compatibility or default name
+    prodName: string;
 }
 
 interface LayoutState {
@@ -344,7 +347,9 @@ export default function RomotaEditor() {
             frameY: layout.frameY,
             frameW: layout.frameW,
             frameH: layout.frameH,
-            textLayers: [...layout.textLayers],
+            textLayers: JSON.parse(JSON.stringify(layout.textLayers)),
+            bgBase64: bgImg?.src,
+            prodBase64: prodImg?.src,
             // Legacy/Extra fields if needed
             prodName: "", textColor: "#ffffff", fontSize: 50, fontFamily: "Impact"
         };
@@ -362,6 +367,18 @@ export default function RomotaEditor() {
             frameH: temp.frameH,
             textLayers: temp.textLayers.map(l => ({ ...l, id: `l-${Date.now()}-${Math.random()}` }))
         }));
+
+        if (temp.bgBase64) {
+            const img = new Image();
+            img.onload = () => setBgImg(img);
+            img.src = temp.bgBase64;
+        }
+        if (temp.prodBase64) {
+            const img = new Image();
+            img.onload = () => setProdImg(img);
+            img.src = temp.prodBase64;
+        }
+
         alert(`Template "${temp.name}" applied!`);
     };
 
