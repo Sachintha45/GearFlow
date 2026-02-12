@@ -434,7 +434,23 @@ export default function RomotaEditor() {
 
             {/* Center Area: Canvas */}
             <div className="flex-1 flex flex-col items-center justify-center relative overflow-hidden bg-black rounded-[2rem] border border-white/5 shadow-inner">
-                <div className="absolute top-4 left-6 z-10 bg-black/40 backdrop-blur-md border border-white/10 px-4 py-2 rounded-2xl flex items-center gap-4">
+                {/* Branding: GearFlow */}
+                <div className="absolute top-4 left-6 z-20 flex items-center gap-3 group/brand">
+                    <div className="relative">
+                        <div className="absolute -inset-2 bg-gradient-to-r from-red-600 to-purple-600 rounded-full blur opacity-40 group-hover/brand:opacity-100 transition duration-1000 group-hover/brand:duration-200 animate-pulse"></div>
+                        <div className="relative bg-black rounded-xl p-2 border border-white/10 shadow-2xl overflow-hidden">
+                            <RotateCcw className="w-5 h-5 text-red-500 animate-[spin_10s_linear_infinite]" />
+                        </div>
+                    </div>
+                    <div className="flex flex-col">
+                        <h1 className="text-xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-gray-500">
+                            GEAR<span className="text-red-600">FLOW</span>
+                        </h1>
+                        <span className="text-[8px] text-gray-500 uppercase font-black tracking-[0.2em] -mt-1 pl-0.5">Automotive Pro Editor</span>
+                    </div>
+                </div>
+
+                <div className="absolute top-4 right-6 z-10 bg-black/40 backdrop-blur-md border border-white/10 px-4 py-2 rounded-2xl flex items-center gap-4">
                     <div className="flex flex-col">
                         <span className="text-[10px] text-gray-500 uppercase font-bold tracking-tighter">Zoom</span>
                         <input

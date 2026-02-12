@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-    title: "Romota FB Editor",
-    description: "Advanced social media post editor",
+    title: "GearFlow | Automotive Pro Editor",
+    description: "Advanced automotive social media post editor",
 };
 
 export default function RootLayout({
